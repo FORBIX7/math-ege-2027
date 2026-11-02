@@ -1,7 +1,7 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),crypto=require('crypto').webcrypto;
 const root=require('path').resolve(__dirname,'..')+'/',stub={addEventListener(){},innerHTML:'',classList:{toggle(){}},style:{setProperty(){}},value:'',querySelector(){return stub}};
 const ctx={window:{scrollTo(){},addEventListener(){}},document:{querySelector(){return stub},querySelectorAll(){return []},addEventListener(){},documentElement:stub},localStorage:{getItem(){return null},setItem(){}},TextEncoder,TextDecoder,Uint8Array,Uint32Array,atob,btoa,console,process,location:{hash:'#home',protocol:'file:'},navigator:{},setTimeout,clearTimeout,setInterval,clearInterval,crypto,Blob,Response,CompressionStream,DecompressionStream};
-vm.createContext(ctx);for(const f of ['data.js','course.js','concepts.js','hints.js','engine.js','visuals.js'])vm.runInContext(fs.readFileSync(root+f,'utf8'),ctx);for(const k of ['LESSONS','COURSE','CONCEPTS','TASK_HINTS','MathCourse','CourseVisuals'])ctx[k]=ctx.window[k];
+vm.createContext(ctx);for(const f of ['data.js','course.js','concepts.js','hints.js','engine.js','task-support.js','visuals.js'])vm.runInContext(fs.readFileSync(root+f,'utf8'),ctx);for(const k of ['LESSONS','COURSE','CONCEPTS','TASK_HINTS','MathCourse','TaskSupport','CourseVisuals'])ctx[k]=ctx.window[k];
 const M=ctx.MathCourse,V=ctx.CourseVisuals;let generated=0,visuals=0;
 for(let n=1;n<=45;n++)for(let v=0;v<2;v++)for(let seed=0;seed<100;seed++){
  const t=M.generate(n,v,seed);assert.equal(M.check(t,t.answer).ok,true,JSON.stringify(t));assert.deepEqual(t,M.generate(n,v,seed),'determinism');assert(t.q.length>10&&t.solution.length>0,JSON.stringify(t));generated++;

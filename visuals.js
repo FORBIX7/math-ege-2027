@@ -95,5 +95,5 @@ case 'water':choose(`В сосуде с вертикальными стенка�
 case 'units':choose(`Длины подобных фигур увеличили в ${a} раза. Во сколько раз увеличились площади?`,a*a);break;
 case 'logic':choose(`В ящике лежат носки ${a} цветов, каждого цвета достаточно много. Какое наименьшее число носков нужно достать вслепую, чтобы среди них обязательно оказалось хотя бы три носка одного цвета?`,2*a+1);break;
 default:throw Error('Нет связанного упражнения')}
-if(answer===null)answer=approx?String(Number(value.toFixed(3))).replace('.',','):f(value);if(approx)q+=' Округлите до тысячных.';const m=model(kind,v,mode);return {id:'l:'+Date.now()+':'+Math.random().toString(36).slice(2,7),topic,family:'model:'+kind,q,answer,solution:m.text+(approx?' Итог округлён до тысячных.':''),assistedModel:true}}
+if(answer===null)answer=approx?String(Number(value.toFixed(3))).replace('.',','):f(value);if(approx)q+=' Округлите до тысячных.';const m=model(kind,v,mode);return {id:'l:'+Date.now()+':'+Math.random().toString(36).slice(2,7),topic,family:'model:'+kind,q,answer,solution:TaskSupport.modelSolution(kind,v,mode,answer)||m.text+(approx?' Итог округлён до тысячных.':''),assistedModel:true}}
 return {mount,model,plot,bars,taskVisual,names,defaultLab,cfg,exercise};})();

@@ -1,10 +1,76 @@
 const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert'),crypto=require('crypto').webcrypto;
 const root=path.resolve(__dirname,'..')+'/';
-function boot(map=new Map(),fault={}){const stub={addEventListener(){},innerHTML:'',classList:{toggle(){},add(){},remove(){}},style:{setProperty(){}},value:'',querySelector(){return stub}};const c={window:{scrollTo(){},addEventListener(){}},document:{querySelector(){return stub},querySelectorAll(){return []},addEventListener(){},documentElement:stub,body:stub},localStorage:{getItem(k){if(fault.read?.(k))throw Error('read denied');return map.get(k)??null},setItem(k,v){if(fault.write?.(k))throw Error('quota');map.set(k,v)}},print(){},TextEncoder,TextDecoder,Uint8Array,Uint32Array,atob,btoa,console,location:{hash:'#home',protocol:'file:'},navigator:{},setTimeout(){},clearTimeout(){},setInterval(){},clearInterval(){},katex:require(root+'vendor/katex.min.js'),crypto,Blob,Response,CompressionStream,DecompressionStream};vm.createContext(c);for(const f of ['data.js','course.js','concepts.js','hints.js','engine-v2.1.js','engine.js','visuals.js','panels.js']){vm.runInContext(fs.readFileSync(root+f,'utf8'),c);Object.assign(c,c.window)}c.CourseVisuals.mount=()=>{};vm.runInContext(fs.readFileSync(root+'app-v2.js','utf8'),c);return c}
+function boot(map=new Map(),fault={}){const stub={addEventListener(){},innerHTML:'',classList:{toggle(){},add(){},remove(){}},style:{setProperty(){}},value:'',querySelector(){return stub}};const c={window:{scrollTo(){},addEventListener(){}},document:{querySelector(){return stub},querySelectorAll(){return []},addEventListener(){},documentElement:stub,body:stub},localStorage:{getItem(k){if(fault.read?.(k))throw Error('read denied');return map.get(k)??null},setItem(k,v){if(fault.write?.(k))throw Error('quota');map.set(k,v)}},print(){},TextEncoder,TextDecoder,Uint8Array,Uint32Array,atob,btoa,console,location:{hash:'#home',protocol:'file:'},navigator:{},setTimeout(){},clearTimeout(){},setInterval(){},clearInterval(){},katex:require(root+'vendor/katex.min.js'),crypto,Blob,Response,CompressionStream,DecompressionStream};vm.createContext(c);for(const f of ['data.js','course.js','concepts.js','hints.js','engine-v2.1.js','engine.js','task-support.js','visuals.js','panels.js']){vm.runInContext(fs.readFileSync(root+f,'utf8'),c);Object.assign(c,c.window)}c.CourseVisuals.mount=()=>{};vm.runInContext(fs.readFileSync(root+'app-v2.js','utf8'),c);return c}
 const run=(c,s)=>vm.runInContext(s,c),key='ponyatno.v2';
 for(const raw of ['{invalid json','{"version":2,"attempts":[{"original":"keep me"}]}']){const store=new Map([[key,raw]]),c=boot(store);assert(run(c,'recoveryLocked'));assert([...store].some(([k,v])=>k.startsWith(key+'.recovery.')&&v===raw));run(c,"start('topic',3);state.draft.answers[0]='123';save()");assert.equal(store.get(key),raw);assert.equal(JSON.parse(store.get(key+'.pending')).draft.answers[0],'123');const reloaded=boot(store);assert.equal(run(reloaded,'state.draft.answers[0]'),'123');assert.equal(store.get(key),raw)}
 for(const fault of [{write:k=>k.includes('.recovery.')},{write:()=>true},{read:k=>k===key}]){const raw='{broken',store=new Map([[key,raw]]),c=boot(store,fault);run(c,'save()');assert.equal(store.get(key),raw);assert(run(c,'recoveryLocked'))}
 const c=boot(),M=c.MathCourse,old=c.MathCourseV21;
+// A correct pair is not a mathematical error just because it uses «и».
+const bracketTask=run(c,"fixed.find(t=>t.id==='f:1:5')");
+for(const input of ['-25 и 25','−25; 25','-25\n25','−25,0 и 25,00'])assert.equal(M.check(bracketTask,input).ok,true,input);
+assert.equal(M.check(bracketTask,'25 и -25').ok,false,'expression values must retain their order');
+for(const input of ['-25','-25, 25','-25 и двадцать пять'])assert.equal(M.check(bracketTask,input).ok,null,'format guidance before counting a mistake');
+const roots={q:'Решите уравнение',answer:'−1/2; 2'};
+assert.equal(M.check(roots,'2 и −0,5').ok,true,'root order is free and decimal commas remain decimal');
+assert.equal(M.check(roots,'2; 2').ok,false,'do not reuse one matched element');
+assert.equal(M.check({answer:'1; 1; 2'},'1; 2; 2').ok,false);
+assert.equal(M.check(run(c,"fixed.find(t=>t.id==='f:2:0')"),'5; 8').ok,true);
+assert.equal(M.check(run(c,"fixed.find(t=>t.id==='f:35:5')"),'4 и 8').ok,true,'unlabelled segment lengths may be in either order');
+assert.equal(M.answerSpec({answer:'−2; −1; 1; 2'}).example,'2 и −3 и 4 и −5');
+assert.notEqual(M.check({type:'matching',answer:'123'},'1 и 2 и 3').ok,true);
+assert.equal(M.check({answer:'(−2;1]'},'−2 и 1').ok,null,'an interval is not a number list');
+assert.equal(c.TaskSupport.fixedCount,315);
+for(const t of run(c,'fixed')){
+ const steps=c.TaskSupport.steps(t);
+ assert.equal(steps[0].title,'На что обратить внимание',t.id+' has an authored hint');
+ assert(steps.length>=2&&steps.length<=3,t.id);
+ assert(steps.every(x=>typeof x.text==='string'&&x.text.trim().length>0),t.id);
+}
+const bracketSteps=c.TaskSupport.steps(bracketTask);
+assert.equal(bracketSteps.length,2);
+assert(bracketSteps[0].text.includes('основание'));
+assert(bracketSteps[1].text.includes('−(5 · 5)'));
+assert(c.TaskSupport.solution(bracketTask).includes('−25 и 25'));
+assert(bracketSteps.every(x=>!x.text.includes('сложение')),'no generic addition hint in an exponent task');
+// A historical or custom condition must never inherit an editorial hint by id.
+const historical={...bracketTask,q:'Совсем другое сохранённое условие',solution:'Особый первый шаг. Особый второй шаг.'};
+assert.equal(c.TaskSupport.steps(historical)[0].text,historical.solution);
+assert.equal(c.TaskSupport.steps(historical)[0].title,'Начало разбора этой задачи');
+assert.equal(historical.q,'Совсем другое сохранённое условие');
+const overridden={...M.generate(8,1,20),q:'Другое условие',solution:'Начните с перевода литров. Продолжите расчёт.'};
+assert.equal(c.TaskSupport.steps(overridden)[0].text,overridden.solution);
+for(let n=1;n<=45;n++)for(let v=0;v<2;v++)for(const seed of [0,71,999]){
+ const t=M.generate(n,v,seed),steps=c.TaskSupport.steps(t);
+ assert.equal(steps[0].title,'На что обратить внимание',t.id);
+ assert.equal(steps[0].text,c.TASK_HINTS[n][v]);
+}
+// Follow the actual wrong-answer / hint / correction flow. Formatting does not
+// create an attempt or mark a task as supported; requesting help does.
+c.testTask=bracketTask;
+const reset=()=>run(c,"state=fresh();state.draft={id:'brackets',mode:'topic',tasks:[testTask],answers:['-25 и 25'],results:[null],index:0,started:Date.now(),help:[0],revealed:[false],choices:[null],tries:[0]}");
+reset();run(c,'grade()');assert.equal(run(c,'state.draft.results[0].ok'),true);assert.equal(run(c,'state.draft.results[0].help'),false);
+reset();run(c,"state.draft.answers[0]='-25';grade()");assert.equal(run(c,'state.attempts.length'),0);assert.equal(run(c,'state.draft.help[0]'),0);
+reset();run(c,"state.draft.answers[0]='25 и 25';grade()");assert.equal(run(c,'state.draft.results[0]'),null);assert.equal(run(c,'state.draft.tries[0]'),1);
+assert(!run(c,'retryMessage(testTask,1)').includes('Умножение и сложение'));
+assert(run(c,'retryMessage(testTask,2)').includes('−(5 · 5)'));
+assert(!run(c,'hintText(testTask,2)').includes('правила знаков'));
+run(c,"state.draft.answers[0]='-25 и 25';grade()");assert.equal(run(c,'state.draft.results[0].ok'),true);assert.equal(run(c,'state.draft.results[0].help'),true);
+assert(run(c,"button('−','key:−')").includes('type="button"'),'symbol buttons cannot submit the answer');
+console.log('PASS task-specific hints for 315 fixed tasks / 270 generated cases / saved conditions / ordered answers / correction flow.');
+for(const [kind,config] of Object.entries(c.CourseVisuals.cfg)){
+ const values=config.map(row=>row[3]);
+ for(const mode of kind==='fractionOps'?['add','subtract','multiply','divide']:kind==='derivative'?['square','abs']:['square']){
+  const t=c.CourseVisuals.exercise(kind,values,1,mode),steps=c.TaskSupport.steps(t);
+  assert(steps.length>=2,kind);
+  assert.equal(steps[0].title,'На что обратить внимание',kind);
+  assert(!/NaN|undefined/.test(t.solution),kind);
+ }
+}
+for(const [kind,values,expected] of [['probability',[3,2],['3/5','2/4']],['sets',[3,4,2],['3 + 4 + 2']],['area',[6,4,3],['3²','108']],['expLog',[3],['3','9']],['numberline',[2,-3],['-1','влево']]]){
+ const t=c.CourseVisuals.exercise(kind,values,1);
+ for(const fragment of expected)assert(t.solution.includes(fragment),kind+' / '+fragment);
+}
+console.log('PASS model hints and condition-specific solutions, including two draws, disjoint sets and similar areas.');
 assert.equal(M.check({answer:'Через 3 ч'},'3').ok,true);assert.equal(M.check({answer:'Через 1,5 ч'},'1,5').ok,true);assert.equal(M.check({answer:'Через 3 ч'},'2').ok,false);
 for(const [target,input,ok] of [['2√3','√12',true],['2√3','−√12',false],['2√3','√13',false],['3','√9',true],['x≤3','(-∞;3]',true],['x≤3','(-∞;3)',false],['(-2;1]','x≤1',false],['x > 5','(5;+∞)',true]])assert.equal(M.check({answer:target},input).ok,ok,target+' / '+input);
 for(const route of ['lesson(3,2)','labs()','reference()','printTopic(3)']){run(c,"state=fresh();start('topic',3)");run(c,route);assert.equal(run(c,'state.draft.help[0]'),1,route);run(c,'state.draft.answers[0]=state.draft.tasks[0].answer;grade()');assert.equal(run(c,'state.draft.results[0].help'),true)}
