@@ -43,3 +43,18 @@ for(let seed=0;seed<500;seed++){
  if(kind===4){m=t.q.match(/≤(\d+)/);assert(0.5**x<=Number(m[1]));assert(0.5**(x-1)>Number(m[1]))}
 }
 console.log('PASS 500 independent inequality boundary checks.');
+
+// A saved task retains its original snapshot but its ambiguous wording is clarified on screen.
+const numberTask=c.CourseVisuals.exercise('numberline',[2,-3],1);
+assert.equal(numberTask.q,'Вычислите: 2 + (-3).');
+assert.equal(M.check(numberTask,'-1').ok,true);
+c.wordingTask={...numberTask,q:'Число 2 изменили на -3. Найдите результат.'};
+assert.equal(run(c,'taskQuestion(wordingTask)'),'Вычислите: 2 + (-3).');
+assert.equal(c.wordingTask.q,'Число 2 изменили на -3. Найдите результат.');
+run(c,"state=fresh();start('topic',1);grade(false,'unknown')");
+assert(run(c,"feedback(state.draft.tasks[0],state.draft.results[0])").includes('Разберём решение вместе'));
+assert(c.CourseVisuals.exercise('box',[4,3,2,30],41).q.includes('прямоугольного параллелепипеда'));
+assert(c.CourseVisuals.exercise('probability',[3,2],27).q.includes('не возвращая первый'));
+assert(c.CourseVisuals.exercise('work',[6,12,2],32).q.includes('каждый работает один'));
+assert(c.CourseVisuals.exercise('circle',[80,230],39).q.includes('опирающийся на ту же дугу'));
+console.log('PASS unambiguous addition / saved wording without snapshot loss / no-answer feedback / required geometry and probability assumptions.');
