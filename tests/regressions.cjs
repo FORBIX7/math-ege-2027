@@ -177,3 +177,39 @@ const fraction=c.Textbook.visual(2);
 assert.equal((fraction.match(/class="selected"/g)||[]).length,5);
 assert.equal((fraction.match(/<i /g)||[]).length,8);
 console.log('PASS 315 canonical fixed answers / units without false errors / all 45 continuous chapters / substitution explanation / interactive widget boundaries.');
+
+// Independent student input cases found during the pre-publication review.
+for(const [answer,input,ok] of [
+ ['3/2','1 1/2',true],['11/2','1 1/2',false],['-7/3','−2 1/3',true],
+ ['12','1 2',null],['1000','1 000',true],['1/2',',5',true],
+ ['π/2','2π/4',true],['−π/2','-pi/2',true],['π/3','2π/3',false],
+ ['√(8/3)','2√6/3',true],['√3/2','3/√12',true],['√3','−√3',false],
+ ['2√3; −2√3','−√12 и √12',true],['0; π; 2π','2pi; 0; pi',true],
+ ['(−2;1]','−2 < x ≤ 1',true],['x≤3','3≥x',true],['1<x<5','(1;5)',true],
+ ['1<x<5','[1;5)',false],['x = 3','3',true],['x = 3','y = 3',null],
+ ['x = 7; y = 4','y=4; x=7',true],['x = 7; y = 4','4;7',false],
+ ['{1,2,3,4}','{4;3;2;1}',true],['{1,2,3,4}','{1;2;3}',false],
+ ['3:7','6:14',true],['9:16','16:9',false]
+])assert.equal(M.check({answer},input).ok,ok,answer+' <- '+input);
+for(const input of ['26/2','13,0','013'])assert.notEqual(M.check({type:'matching',answer:'13'},input).ok,true);
+assert.equal(M.check({type:'matching',answer:'13'},'1 3').ok,true);
+for(const [id,input,ok] of [
+ ['f:2:1','12/18',null],['f:2:1','2/3',true],['f:2:2','3 2/5',null],
+ ['f:2:2','17/5',true],['f:2:3','29/6',null],['f:2:3','4 5/6',true],
+ ['f:2:5','7/12',null],['f:2:5','49/84',true],['f:5:4','7/20',null],
+ ['f:5:4','0,35',true],['f:5:3','6/16',null],['f:5:3','3/8',true],
+ ['f:14:6','30 и 20',true],['f:14:6','20 и 30',false],
+ ['f:22:3','−2; −5',true],['f:22:3','−5; −2',false]
+])assert.equal(M.check(run(c,`fixed.find(t=>t.id==='${id}')`),input).ok,ok,id+' <- '+input);
+const digitFixed=run(c,"fixed.find(t=>t.id==='f:30:5')");
+for(let n=0;n<1000;n++){const input=String(n).padStart(3,'0'),sum=[...input].reduce((a,x)=>a+Number(x),0);assert.equal(M.check(digitFixed,input).ok,n>=100&&sum===15&&n%5===0&&n%10!==0)}
+assert.equal(M.check({rule:{kind:'digits',sum:10,div:5,notdiv:10}},'055').ok,false);
+for(const t of run(c,'fixed')){const guide=M.answerGuide(t);assert(guide.note&&guide.placeholder&&Array.isArray(guide.symbols));assert.equal(M.check(t,t.answer).ok,true,t.id)}
+for(const [old,part] of [
+ ['Для тех же множеств найдите A∪B.','A={1,2,3}'],
+ ['У той же пирамиды найдите высоту и объём.','сторона основания 8'],
+ ['В сосуде с площадью основания 80 см² уровень поднялся на 3 см. Деталь полностью погружена. Найдите её объём.','постоянной площадью горизонтального сечения']
+]){assert(c.TaskSupport.question({q:old}).includes(part));assert.equal(c.TaskSupport.steps({q:old,solution:'Старое решение.'})[0].title,'На что обратить внимание')}
+assert(run(c,"taskIllustration(fixed.find(t=>t.id==='f:21:6'))").includes('y = x² − 4'));
+for(const [n,text] of [[5,'90x = 15'],[15,'x² = 4'],[26,'D = (4 + 0 + 4)/3'],[30,'НОД(36,60)'],[34,'q ≠ 1'],[35,'BD:DC'],[38,'720°'],[42,'h² + 4² = 5²']])assert(c.Textbook.render(n).includes(text),'explained exercise prerequisite '+n);
+console.log('PASS student formats / exact pi and radicals / required fraction form / 1000 digit candidates / self-contained saved questions / added teaching cases.');
