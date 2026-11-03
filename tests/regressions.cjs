@@ -1,6 +1,6 @@
 const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert'),crypto=require('crypto').webcrypto;
 const root=path.resolve(__dirname,'..')+'/';
-function boot(map=new Map(),fault={}){const stub={addEventListener(){},innerHTML:'',classList:{toggle(){},add(){},remove(){}},style:{setProperty(){}},value:'',querySelector(){return stub}};const c={window:{scrollTo(){},addEventListener(){}},document:{querySelector(){return stub},querySelectorAll(){return []},addEventListener(){},documentElement:stub,body:stub},localStorage:{getItem(k){if(fault.read?.(k))throw Error('read denied');return map.get(k)??null},setItem(k,v){if(fault.write?.(k))throw Error('quota');map.set(k,v)}},print(){},TextEncoder,TextDecoder,Uint8Array,Uint32Array,atob,btoa,console,location:{hash:'#home',protocol:'file:'},navigator:{},setTimeout(){},clearTimeout(){},setInterval(){},clearInterval(){},katex:require(root+'vendor/katex.min.js'),crypto,Blob,Response,CompressionStream,DecompressionStream};vm.createContext(c);for(const f of ['data.js','course.js','concepts.js','hints.js','engine-v2.1.js','engine.js','task-support.js','visuals.js','panels.js','textbook.js']){vm.runInContext(fs.readFileSync(root+f,'utf8'),c);Object.assign(c,c.window)}c.CourseVisuals.mount=()=>{};vm.runInContext(fs.readFileSync(root+'app-v2.js','utf8'),c);return c}
+function boot(map=new Map(),fault={}){const stub={showModal(){},close(){},addEventListener(){},innerHTML:'',classList:{toggle(){},add(){},remove(){}},style:{setProperty(){}},value:'',querySelector(){return stub}};const c={window:{scrollTo(){},addEventListener(){}},document:{querySelector(){return stub},querySelectorAll(){return []},addEventListener(){},documentElement:stub,body:stub},localStorage:{getItem(k){if(fault.read?.(k))throw Error('read denied');return map.get(k)??null},setItem(k,v){if(fault.write?.(k))throw Error('quota');map.set(k,v)}},print(){},TextEncoder,TextDecoder,Uint8Array,Uint32Array,atob,btoa,console,location:{hash:'#home',protocol:'file:'},navigator:{},setTimeout(){},clearTimeout(){},setInterval(){},clearInterval(){},katex:require(root+'vendor/katex.min.js'),crypto,Blob,Response,CompressionStream,DecompressionStream};vm.createContext(c);for(const f of ['data.js','course.js','concepts.js','hints.js','engine-v2.1.js','engine.js','task-support.js','visuals.js','panels.js','textbook.js']){vm.runInContext(fs.readFileSync(root+f,'utf8'),c);Object.assign(c,c.window)}c.CourseVisuals.mount=()=>{};vm.runInContext(fs.readFileSync(root+'app-v2.js','utf8'),c);return c}
 const run=(c,s)=>vm.runInContext(s,c),key='ponyatno.v2';
 for(const raw of ['{invalid json','{"version":2,"attempts":[{"original":"keep me"}]}']){const store=new Map([[key,raw]]),c=boot(store);assert(run(c,'recoveryLocked'));assert([...store].some(([k,v])=>k.startsWith(key+'.recovery.')&&v===raw));run(c,"start('topic',3);state.draft.answers[0]='123';save()");assert.equal(store.get(key),raw);assert.equal(JSON.parse(store.get(key+'.pending')).draft.answers[0],'123');const reloaded=boot(store);assert.equal(run(reloaded,'state.draft.answers[0]'),'123');assert.equal(store.get(key),raw)}
 for(const fault of [{write:k=>k.includes('.recovery.')},{write:()=>true},{read:k=>k===key}]){const raw='{broken',store=new Map([[key,raw]]),c=boot(store,fault);run(c,'save()');assert.equal(store.get(key),raw);assert(run(c,'recoveryLocked'))}
@@ -218,3 +218,32 @@ console.log('PASS student formats / exact pi and radicals / required fraction fo
 for(const [answer,input] of [["12π","1 2pi"],["12√3","1 2√3"],["√12","√(1 2)"]])assert.notEqual(M.check({answer},input).ok,true);
 assert.equal(M.check({answer:"2√3"},"2 √3").ok,true);
 assert.equal(M.check({answer:"2π"},"2 pi").ok,true);
+
+// Closing/reopening the replacement prompt never authorizes discarding a draft.
+run(c,"state=fresh();start.pending=null;start('topic',3);state.draft.answers[0]='keep this answer';save()");
+const preservedDraft=run(c,'JSON.stringify(state.draft)');
+for(const mode of ['fixed','mixed','quick','exam']){c.requestMode=mode;run(c,"start(requestMode,7)");assert.equal(run(c,'JSON.stringify(state.draft)'),preservedDraft,'replacement still requires confirmation: '+mode)}
+run(c,"start.pending=true;start('fixed',7)");assert.equal(run(c,'state.draft.tasks[0].topic'),7);
+// Independent mixed-number arithmetic, including negative zero whole parts.
+for(let whole=-12;whole<=12;whole++)for(let den=2;den<=15;den++)for(let num=1;num<den;num++){
+ const text=(whole<0?'-':'')+Math.abs(whole)+' '+num+'/'+den;
+ const expected=M.rat(BigInt((whole<0?-1:1)*(Math.abs(whole)*den+num)),BigInt(den));
+ assert(M.equal(M.parse(text),expected),text);
+}
+assert(M.equal(M.parse('-0 1/2'),M.rat(-1n,2n)));
+for(const [answer,yes,no] of [
+ ['(-2;3]','3 >= x > -2','3 > x >= -2'],
+ ['[-2;3)','3 > x >= -2','3 >= x > -2'],
+ ['x>-4','-4<x','-4<=x'],
+ ['x≤4','4≥x','4>x']
+]){assert.equal(M.check({answer},yes).ok,true);assert.equal(M.check({answer},no).ok,false)}
+// Complete works, empty works and expiry use the real submission path.
+for(let seed=0;seed<20;seed++){
+ c.examSeed=seed;
+ run(c,"state=fresh();start.pending=null;start('exam');state.draft.tasks=M.exam(examSeed);state.draft.answers=state.draft.tasks.map(t=>t.answer);submitExam()");
+ assert.equal(run(c,'state.exams.length'),1);assert.equal(run(c,'state.exams[0].score'),21);
+ run(c,'submitExam()');assert.equal(run(c,'state.exams.length'),1,'no duplicate submission');assert.equal(run(c,'valid(state)'),true);
+}
+run(c,"state=fresh();start.pending=null;start('exam');state.draft.started=now()-180*60000-1000;renderSession()");
+assert.equal(run(c,'state.exams.length'),1);assert.equal(run(c,'state.exams[0].score'),0);assert.equal(run(c,'state.draft'),null);
+console.log('PASS cancelled replacement preserves draft / 2625 mixed numbers / inequality direction and endpoints / 20 complete works / duplicate submission / expiry.');
