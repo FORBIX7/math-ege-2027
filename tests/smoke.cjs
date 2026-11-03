@@ -17,7 +17,7 @@ for(const [k,c] of Object.entries(V.cfg)){const lists=[c.map(x=>x[3]),c.map(x=>x
 for(const mode of ['add','subtract','multiply','divide'])for(const v of [[5,6,3,8],[1,2,3,4],[1,2,0,3],[0,1,1,2]]){const m=V.model('fractionOps',v,mode),t=V.exercise('fractionOps',v,3,mode);assert(!/NaN|Infinity|undefined/.test(m.visual));assert.equal(M.check(t,t.answer).ok,true);if(mode==='divide'&&v[2]===0)assert(m.text.includes('нельзя'));visuals++}
 const katex=require(root+'vendor/katex.min.js');let formulas=0;for(const l of ctx.LESSONS){assert.equal(l.tasks.length,7);assert(ctx.COURSE[l.n]);for(const f of l.formulas){katex.renderToString(f,{throwOnError:true});formulas++}const parts=[l.intro,...l.blocks.flat(),...ctx.COURSE[l.n].blocks.flatMap(b=>b.paragraphs)];for(const s of parts)for(const match of s.matchAll(/\$([^$]+)\$/g)){katex.renderToString(match[1],{throwOnError:true});formulas++}}
 vm.runInContext(fs.readFileSync(root+'panels.js','utf8'),ctx);ctx.CoursePanels=ctx.window.CoursePanels;for(let n=1;n<=45;n++){assert(ctx.CoursePanels.get(n,0)?.html,'inline explanation '+n)}
-vm.runInContext(fs.readFileSync(root+'app-v2.js','utf8'),ctx);
+vm.runInContext(fs.readFileSync(root+'textbook.js','utf8'),ctx);ctx.Textbook=ctx.window.Textbook;vm.runInContext(fs.readFileSync(root+'app-v2.js','utf8'),ctx);
 vm.runInContext(`
  for(let n=1;n<=45;n++){const t=conceptTask(n);if(MathCourse.check(t,t.answer).ok!==true||!validTask(t))throw Error('concept');}
  const sample=fresh();sample.attempts=Array.from({length:200},(_,i)=>({id:'test'+i,task:'g:1:0:'+i,topic:1,family:'1:0',ok:true,help:false,at:1793500000000+i}));

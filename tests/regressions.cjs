@@ -1,6 +1,6 @@
 const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert'),crypto=require('crypto').webcrypto;
 const root=path.resolve(__dirname,'..')+'/';
-function boot(map=new Map(),fault={}){const stub={addEventListener(){},innerHTML:'',classList:{toggle(){},add(){},remove(){}},style:{setProperty(){}},value:'',querySelector(){return stub}};const c={window:{scrollTo(){},addEventListener(){}},document:{querySelector(){return stub},querySelectorAll(){return []},addEventListener(){},documentElement:stub,body:stub},localStorage:{getItem(k){if(fault.read?.(k))throw Error('read denied');return map.get(k)??null},setItem(k,v){if(fault.write?.(k))throw Error('quota');map.set(k,v)}},print(){},TextEncoder,TextDecoder,Uint8Array,Uint32Array,atob,btoa,console,location:{hash:'#home',protocol:'file:'},navigator:{},setTimeout(){},clearTimeout(){},setInterval(){},clearInterval(){},katex:require(root+'vendor/katex.min.js'),crypto,Blob,Response,CompressionStream,DecompressionStream};vm.createContext(c);for(const f of ['data.js','course.js','concepts.js','hints.js','engine-v2.1.js','engine.js','task-support.js','visuals.js','panels.js']){vm.runInContext(fs.readFileSync(root+f,'utf8'),c);Object.assign(c,c.window)}c.CourseVisuals.mount=()=>{};vm.runInContext(fs.readFileSync(root+'app-v2.js','utf8'),c);return c}
+function boot(map=new Map(),fault={}){const stub={addEventListener(){},innerHTML:'',classList:{toggle(){},add(){},remove(){}},style:{setProperty(){}},value:'',querySelector(){return stub}};const c={window:{scrollTo(){},addEventListener(){}},document:{querySelector(){return stub},querySelectorAll(){return []},addEventListener(){},documentElement:stub,body:stub},localStorage:{getItem(k){if(fault.read?.(k))throw Error('read denied');return map.get(k)??null},setItem(k,v){if(fault.write?.(k))throw Error('quota');map.set(k,v)}},print(){},TextEncoder,TextDecoder,Uint8Array,Uint32Array,atob,btoa,console,location:{hash:'#home',protocol:'file:'},navigator:{},setTimeout(){},clearTimeout(){},setInterval(){},clearInterval(){},katex:require(root+'vendor/katex.min.js'),crypto,Blob,Response,CompressionStream,DecompressionStream};vm.createContext(c);for(const f of ['data.js','course.js','concepts.js','hints.js','engine-v2.1.js','engine.js','task-support.js','visuals.js','panels.js','textbook.js']){vm.runInContext(fs.readFileSync(root+f,'utf8'),c);Object.assign(c,c.window)}c.CourseVisuals.mount=()=>{};vm.runInContext(fs.readFileSync(root+'app-v2.js','utf8'),c);return c}
 const run=(c,s)=>vm.runInContext(s,c),key='ponyatno.v2';
 for(const raw of ['{invalid json','{"version":2,"attempts":[{"original":"keep me"}]}']){const store=new Map([[key,raw]]),c=boot(store);assert(run(c,'recoveryLocked'));assert([...store].some(([k,v])=>k.startsWith(key+'.recovery.')&&v===raw));run(c,"start('topic',3);state.draft.answers[0]='123';save()");assert.equal(store.get(key),raw);assert.equal(JSON.parse(store.get(key+'.pending')).draft.answers[0],'123');const reloaded=boot(store);assert.equal(run(reloaded,'state.draft.answers[0]'),'123');assert.equal(store.get(key),raw)}
 for(const fault of [{write:k=>k.includes('.recovery.')},{write:()=>true},{read:k=>k===key}]){const raw='{broken',store=new Map([[key,raw]]),c=boot(store,fault);run(c,'save()');assert.equal(store.get(key),raw);assert(run(c,'recoveryLocked'))}
@@ -124,3 +124,56 @@ assert(c.CourseVisuals.exercise('probability',[3,2],27).q.includes('не воз�
 assert(c.CourseVisuals.exercise('work',[6,12,2],32).q.includes('каждый работает один'));
 assert(c.CourseVisuals.exercise('circle',[80,230],39).q.includes('опирающийся на ту же дугу'));
 console.log('PASS unambiguous addition / saved wording without snapshot loss / no-answer feedback / required geometry and probability assumptions.');
+
+// Accept the original fixed answers, including their units, without broad text evaluation.
+for(const t of run(c,'fixed'))assert.equal(M.check(t,t.answer).ok,true,'canonical fixed answer '+t.id);
+for(const [answer,input,ok] of [
+ ['630 руб.','630',true],['630 руб.','630 руб',true],['630 руб.','630,0 руб.',true],
+ ['630 руб.','631 руб.',false],['630 руб.','630 кг',null],['25%','25',true],
+ ['25%','25 %',true],['12 см²','12',true],['12 см²','12 см',null],
+ ['Через 3 ч','3',true],['За 4 мин','4 мин',true],['1/2','0,5',true],
+ ['1/2','0,5 кг',null],['12 см²','alert(12)',null]
+])assert.equal(M.check({answer},input).ok,ok,answer+' <- '+input);
+run(c,"state=fresh();start('topic',1);state.draft.tasks[0]={...state.draft.tasks[0],answer:'630 руб.'};state.draft.answers[0]='630 кг';grade()");
+assert.equal(run(c,'state.attempts.length'),0,'unit format error must not become a wrong attempt');
+assert.equal(run(c,'state.draft.results[0]'),null);
+run(c,"state.draft.answers[0]='630 руб.';grade()");
+assert.equal(run(c,'state.draft.results[0].ok'),true);
+
+// All topics open as continuous reading; original chapter indices/material stay available.
+assert.equal(Object.keys(c.Textbook.topics).length,45);
+for(let n=1;n<=45;n++){
+ c.readingNumber=n;
+ const html=c.Textbook.render(n),topic=c.Textbook.topics[n];
+ assert(html.includes('read-example-'+n),'worked example anchor '+n);
+ assert(html.includes('Проверяем результат'),'independent check '+n);
+ assert(!/NaN|undefined|Infinity/.test(html),'invalid figure/text '+n);
+ for(const [heading] of topic.sections)assert(html.includes(heading));
+ run(c,'state=fresh();readTopic(readingNumber)');
+ assert(run(c,"document.querySelector('#app').innerHTML").includes('Формулы для повторения'));
+ run(c,'lesson(readingNumber,0)');
+ assert(run(c,"document.querySelector('#app').innerHTML").includes('expandedTextbook'));
+ assert.equal(run(c,'chapterList(byTopic(readingNumber))[0].blockIndex'),0);
+}
+const substitutionChapter=c.Textbook.render(14);
+for(const text of ['3 · 4 + 2 = 14','Числа 3 и 2 мы не заменяем','Откуда взять 4','3x + 2 − 2 = 14 − 2','3x : 3 = 12 : 3'])assert(substitutionChapter.includes(text),text);
+// Exercise each actual widget handler, including boundaries and negative substitutions.
+for(const [kind,values] of Object.entries({equation:[0,1,4,8],substitution:[-4,-2,0,4],function:[-3,0,3,4],linear:[-2,0,2,4],exponential:[-3,0,3],exponentEquation:[-1.5,-1,0,3],derivative:[-2,0,1,2],quadraticShift:[-3,0,3],hyperbolaScale:[1,2,6],logarithm:[.25,1,3,8],wave:[0,.125,.25,.5,1,2]})){
+ for(const value of values){
+  const output={},result={},input={value,addEventListener(event,handler){this.update=handler}},host={dataset:{bookProbe:kind},querySelector(selector){return selector==='input'?input:selector==='[data-value]'?output:result}};
+  c.Textbook.mount({querySelectorAll(){return [host]}});
+  assert(result.innerHTML&&!/NaN|undefined|Infinity/.test(result.innerHTML),kind+value);
+  if(kind==='equation')assert.equal(result.innerHTML.includes('✓ Равенство выполнено'),value===4);
+  if(kind==='substitution')assert(result.innerHTML.includes(String(2*value*value-3*value).replace(/-/g,'−')));
+  if(kind==='logarithm')assert(result.innerHTML.includes('≈')&&result.innerHTML.includes('x ≤ 0'));
+  if(kind==='wave')assert(result.innerHTML.includes('период равен π'));
+  if(kind==='hyperbolaScale')assert(result.innerHTML.includes('две ветви не соединяются'));
+  if(kind==='derivative')assert(result.innerHTML.includes('Наклон')&&result.innerHTML.includes('Высота'));
+  input.value=value;input.update();
+ }
+}
+// Fractions need visibly different selected/unselected pieces, not decorative empty strips.
+const fraction=c.Textbook.visual(2);
+assert.equal((fraction.match(/class="selected"/g)||[]).length,5);
+assert.equal((fraction.match(/<i /g)||[]).length,8);
+console.log('PASS 315 canonical fixed answers / units without false errors / all 45 continuous chapters / substitution explanation / interactive widget boundaries.');
