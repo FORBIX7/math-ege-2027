@@ -23,6 +23,7 @@ const equal=(a,b)=>a&&b&&a[0]===b[0]&&a[1]===b[1];
 const norm=s=>String(s).toLowerCase().replace(/−|–/g,'-').replace(/\s+/g,'').replace(/,/g,'.').replace(/\btg/g,'tan').replace(/\*/g,'·');
 function scalar(s){
  const r=parse(s);if(r)return {sign:r[0]<0n?-1:r[0]>0n?1:0,square:rat(r[0]*r[0],r[1]*r[1])};
+ if(/\d\s+\d/.test(String(s)))return null;
  s=norm(s).replace(/sqrt/g,'√');if(s.length>100)return null;
  let m=s.match(/^([+-]?\d*)[·]?√(?:\(([^()]+)\)|(\d+(?:\.\d+)?))(?:\/(\d+))?$/);
  if(m){const r=parse(m[2]||m[3]),k=m[1]===''||m[1]==='+'?1n:m[1]==='-'?-1n:BigInt(m[1]),d=BigInt(m[4]||1);if(!r||r[0]<0n||!d)return null;return {sign:!k||!r[0]?0:k<0n?-1:1,square:rat(k*k*r[0],d*d*r[1])}}
@@ -30,7 +31,7 @@ function scalar(s){
  if(m){const r=parse(m[2]||m[3]),k=BigInt(m[1]);if(!r||r[0]<=0n)return null;return {sign:k<0n?-1:k>0n?1:0,square:rat(k*k*r[1],r[0])}}
  return null;
 }
-function piScalar(s){const m=norm(s).replace(/\\pi|pi|пи/g,'π').match(/^([+-]?\d*)[·]?π(?:\/([+-]?\d+))?$/);if(!m)return null;try{const n=m[1]===''||m[1]==='+'?1n:m[1]==='-'?-1n:BigInt(m[1]);return rat(n,BigInt(m[2]||1))}catch{return null}}
+function piScalar(s){if(/\d\s+\d/.test(String(s)))return null;const m=norm(s).replace(/\\pi|pi|пи/g,'π').match(/^([+-]?\d*)[·]?π(?:\/([+-]?\d+))?$/);if(!m)return null;try{const n=m[1]===''||m[1]==='+'?1n:m[1]==='-'?-1n:BigInt(m[1]);return rat(n,BigInt(m[2]||1))}catch{return null}}
 function measured(s){s=String(s).trim().replace(/^(?:Через|За)\s+/i,'');const m=s.match(/\s*(км\/ч|м\/с|мм[²³]?|см[²³]?|км[²³]?|м[²³]?|руб\.?|мг|кг|мин|ч|сек|с|г|т|л|%|°)\s*$/i);if(m){const value=s.slice(0,m.index).trim();if(scalar(value)||piScalar(value))return {value,unit:m[1].toLowerCase().replace(/\.$/,'')}}return {value:s,unit:''}}
 function atom(s){let label='';const assignment=String(s).trim().match(/^([a-zа-я](?:[₁₂]|_[12])?)\s*=\s*(.+)$/iu);if(assignment){label=assignment[1].toLowerCase();s=assignment[2]}const m=measured(s),p=piScalar(m.value),v=scalar(m.value);return p?{kind:'pi',value:p,label,unit:m.unit}:v?{kind:'scalar',value:v,label,unit:m.unit}:null}
 function sameAtom(a,b){if(a.kind!==b.kind)return a.kind==='pi'?a.value[0]===0n&&b.value.sign===0:b.value[0]===0n&&a.value.sign===0;return a.kind==='pi'?equal(a.value,b.value):a.value.sign===b.value.sign&&equal(a.value.square,b.value.square)}

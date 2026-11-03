@@ -213,3 +213,8 @@ for(const [old,part] of [
 assert(run(c,"taskIllustration(fixed.find(t=>t.id==='f:21:6'))").includes('y = x² − 4'));
 for(const [n,text] of [[5,'90x = 15'],[15,'x² = 4'],[26,'D = (4 + 0 + 4)/3'],[30,'НОД(36,60)'],[34,'q ≠ 1'],[35,'BD:DC'],[38,'720°'],[42,'h² + 4² = 5²']])assert(c.Textbook.render(n).includes(text),'explained exercise prerequisite '+n);
 console.log('PASS student formats / exact pi and radicals / required fraction form / 1000 digit candidates / self-contained saved questions / added teaching cases.');
+
+// Separated digits inside an exact expression must never concatenate silently.
+for(const [answer,input] of [["12π","1 2pi"],["12√3","1 2√3"],["√12","√(1 2)"]])assert.notEqual(M.check({answer},input).ok,true);
+assert.equal(M.check({answer:"2√3"},"2 √3").ok,true);
+assert.equal(M.check({answer:"2π"},"2 pi").ok,true);
